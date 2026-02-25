@@ -91,4 +91,61 @@ mod tests {
         let result = migrate_config(source);
         assert!(matches!(result, Err(MigrationError::InvalidPort)));
     }
+
+    #[test]
+    fn migration_trims_string_fields() {
+        let source = OpenClawConfig {
+            host: Some("  0.0.0.0  ".to_owned()),
+            port: Some(18_789),
+            gateway_token: Some("  token-123  ".to_owned()),
+            gateway_password: None,
+            max_payload_bytes: None,
+            max_buffered_bytes: None,
+            handshake_timeout_ms: None,
+            tick_interval_ms: None,
+            cron_enabled: None,
+            cron_poll_ms: None,
+            cron_runs_limit: None,
+            db_path: Some("  /tmp/reclaw.db  ".to_owned()),
+            auth_max_attempts: None,
+            auth_window_ms: None,
+            runtime_version: Some(" 1.2.3 ".to_owned()),
+            log_level: Some(" debug ".to_owned()),
+            json_logs: None,
+        };
+
+        let target = migrate_config(source).expect("migration should succeed");
+        assert_eq!(target.host.as_deref(), Some("0.0.0.0"));
+        assert_eq!(target.gateway_token.as_deref(), Some("token-123"));
+        assert_eq!(target.db_path.as_deref(), Some("/tmp/reclaw.db"));
+        assert_eq!(target.runtime_version.as_deref(), Some("1.2.3"));
+        assert_eq!(target.log_filter.as_deref(), Some("debug"));
+    }
+
+    #[test]
+    fn migration_drops_empty_auth_strings() {
+        let source = OpenClawConfig {
+            host: None,
+            port: None,
+            gateway_token: Some("   ".to_owned()),
+            gateway_password: None,
+            max_payload_bytes: None,
+            max_buffered_bytes: None,
+            handshake_timeout_ms: None,
+            tick_interval_ms: None,
+            cron_enabled: None,
+            cron_poll_ms: None,
+            cron_runs_limit: None,
+            db_path: None,
+            auth_max_attempts: None,
+            auth_window_ms: None,
+            runtime_version: None,
+            log_level: None,
+            json_logs: None,
+        };
+
+        let target = migrate_config(source).expect("migration should succeed");
+        assert!(target.gateway_token.is_none());
+        assert!(target.gateway_password.is_none());
+    }
 }

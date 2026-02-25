@@ -3,6 +3,7 @@ use thiserror::Error;
 use crate::{OpenClawConfig, ReclawConfig};
 
 pub fn migrate_config(source: OpenClawConfig) -> Result<ReclawConfig, MigrationError> {
+    let source = normalize_source(source);
     validate_auth_secrets(&source)?;
     validate_port(source.port)?;
 
@@ -27,14 +28,32 @@ pub fn migrate_config(source: OpenClawConfig) -> Result<ReclawConfig, MigrationE
     })
 }
 
-fn validate_auth_secrets(source: &OpenClawConfig) -> Result<(), MigrationError> {
-    match (&source.gateway_token, &source.gateway_password) {
-        (Some(token), Some(password))
-            if !token.trim().is_empty() && !password.trim().is_empty() =>
-        {
-            Err(MigrationError::ConflictingAuthSecrets)
+fn normalize_source(mut source: OpenClawConfig) -> OpenClawConfig {
+    source.host = normalize_optional_string(source.host);
+    source.gateway_token = normalize_optional_string(source.gateway_token);
+    source.gateway_password = normalize_optional_string(source.gateway_password);
+    source.db_path = normalize_optional_string(source.db_path);
+    source.runtime_version = normalize_optional_string(source.runtime_version);
+    source.log_level = normalize_optional_string(source.log_level);
+    source
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let normalized = raw.trim();
+        if normalized.is_empty() {
+            None
+        } else {
+            Some(normalized.to_owned())
         }
-        _ => Ok(()),
+    })
+}
+
+fn validate_auth_secrets(source: &OpenClawConfig) -> Result<(), MigrationError> {
+    if source.gateway_token.is_some() && source.gateway_password.is_some() {
+        Err(MigrationError::ConflictingAuthSecrets)
+    } else {
+        Ok(())
     }
 }
 
